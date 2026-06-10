@@ -43,7 +43,7 @@ fun formatTime(ms: Int): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
+fun DetailScreen(viewModel: MusicViewModel, onBack: () -> Unit, onLyrics: () -> Unit = {}) {
     val track by viewModel.selectedTrack.collectAsState()
     val lyrics by viewModel.lyrics.collectAsState()
     val isLyricsLoading by viewModel.isLyricsLoading.collectAsState()
@@ -260,7 +260,7 @@ fun DetailScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
                     }
                 }
 
-                // Lyrics
+                // Lyrics card with open button
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -268,12 +268,22 @@ fun DetailScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
                         shape = RoundedCornerShape(20.dp)
                     ) {
                         Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Lyrics", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("Lyrics", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                if (!isLyricsLoading && lyrics != null) {
+                                    TextButton(onClick = onLyrics) {
+                                        Text("Full View", color = Color(0xFF7C4DFF), fontSize = 13.sp)
+                                    }
+                                }
+                            }
                             Spacer(Modifier.height(12.dp))
                             when {
                                 isLyricsLoading -> CircularProgressIndicator(color = Color(0xFF1DB954))
-                                lyrics != null -> Text(lyrics!!, color = Color.White.copy(.85f),
-                                    textAlign = TextAlign.Center, lineHeight = 26.sp, fontSize = 15.sp)
+                                lyrics != null -> Text(
+                                    lyrics!!.lines().take(6).joinToString("\n"),
+                                    color = Color.White.copy(.85f),
+                                    textAlign = TextAlign.Center, lineHeight = 26.sp, fontSize = 15.sp
+                                )
                                 else -> Text("Lyrics tidak tersedia.", color = Color.White.copy(.5f), textAlign = TextAlign.Center)
                             }
                         }
