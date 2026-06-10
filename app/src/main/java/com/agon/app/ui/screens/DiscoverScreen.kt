@@ -41,7 +41,7 @@ fun DiscoverScreen(
     val searchResults by viewModel.searchResults.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val topCharts by viewModel.topCharts.collectAsState()
-    val recentlyPlayed by viewModel.recentlyPlayed.collectAsState()
+    val recentlyPlayed by viewModel.recentlyPlayed.collectAsState(initial = emptyList())
     val keyboardController = LocalSoftwareKeyboardController.current
     var selectedTab by remember { mutableStateOf(0) }
     val tabs = listOf("Home", "Search", "Library")
@@ -73,7 +73,7 @@ fun DiscoverScreen(
 }
 
 @Composable
-fun HomeTab(topCharts: List<Track>, recentlyPlayed: List<Track>, onSelect: (Track) -> Unit, viewModel: MusicViewModel) {
+fun HomeTab(topCharts: List<Track>, recentlyPlayed: List<com.agon.app.db.entities.SongEntity>, onSelect: (Track) -> Unit, viewModel: MusicViewModel) {
     val genres = listOf("Pop", "Rock", "Hip-Hop", "Electronic", "R&B", "Jazz", "K-Pop", "Dangdut", "Indie", "Lo-fi", "Metal", "Classical")
     val genreColors = listOf(
         Color(0xFF1DB954), Color(0xFFE91429), Color(0xFF509BF5),
@@ -91,7 +91,8 @@ fun HomeTab(topCharts: List<Track>, recentlyPlayed: List<Track>, onSelect: (Trac
             }
             item {
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(recentlyPlayed.take(10)) { track ->
+                    items(recentlyPlayed.take(10)) { song ->
+                        val track = Track(trackId = song.id.hashCode().toLong(), trackName = song.title, artistName = song.artist, artworkUrl100 = song.thumbnailUrl, previewUrl = song.audioUrl, ytVideoId = song.id)
                         RecentCard(track) { onSelect(track) }
                     }
                 }

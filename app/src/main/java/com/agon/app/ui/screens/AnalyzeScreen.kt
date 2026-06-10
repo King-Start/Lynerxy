@@ -24,7 +24,7 @@ import com.agon.app.viewmodel.MusicViewModel
 @Composable
 fun AnalyzeScreen(viewModel: MusicViewModel, onOpenDrawer: () -> Unit = {}) {
     val favorites by viewModel.favorites.collectAsState()
-    val recentlyPlayed by viewModel.recentlyPlayed.collectAsState()
+    val recentlyPlayed by viewModel.recentlyPlayed.collectAsState(initial = emptyList())
     val apiValidation by viewModel.apiValidationResult.collectAsState()
     val apiKey by viewModel.apiKey.collectAsState()
     val apiProvider by viewModel.apiProvider.collectAsState()
@@ -62,7 +62,7 @@ fun AnalyzeScreen(viewModel: MusicViewModel, onOpenDrawer: () -> Unit = {}) {
                     primaryGenreName = track.primaryGenreName
                 ))
             }
-            2 -> RecentTab(recentlyPlayed) { viewModel.selectTrack(it) }
+            2 -> RecentTab(recentlyPlayed.map { s -> com.agon.app.data.Track(trackId = s.id.hashCode().toLong(), trackName = s.title, artistName = s.artist, artworkUrl100 = s.thumbnailUrl, previewUrl = s.audioUrl, ytVideoId = s.id) }) { viewModel.selectTrack(it) }
         }
     }
 }

@@ -1,9 +1,5 @@
 package com.agon.app.utils
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -13,10 +9,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.minutes
 
-/**
- * Sleep timer — otomatis pause player setelah durasi tertentu.
- * Port dari RythimMusic dengan modifikasi untuk La project.
- */
 class SleepTimer(
     private val scope: CoroutineScope,
     var player: Player,
@@ -29,27 +21,23 @@ class SleepTimer(
     }
 
     private var job: Job? = null
-
-    var triggerTime by mutableLongStateOf(-1L)
+    var triggerTime: Long = -1L
         private set
-    var pauseWhenSongEnd by mutableStateOf(false)
+    var pauseWhenSongEnd: Boolean = false
         private set
-    var fadeOutEnabled by mutableStateOf(false)
+    var fadeOutEnabled: Boolean = false
         private set
 
     val isActive: Boolean get() = triggerTime != -1L || pauseWhenSongEnd
 
-    /** Mulai timer sederhana tanpa fade */
     fun start(minutes: Int) = start(minutes, stopAfterCurrentSong = false, fadeOut = false)
 
-    /** Mulai timer dengan opsi stop setelah lagu selesai dan/atau fade out */
     fun start(minutes: Int, stopAfterCurrentSong: Boolean, fadeOut: Boolean) {
         job?.cancel(); job = null
         updateVolume(1f)
         fadeOutEnabled = fadeOut
 
         if (minutes == -1) {
-            // Mode "pause setelah lagu ini selesai"
             pauseWhenSongEnd = true
             triggerTime = -1L
             if (fadeOutEnabled) job = scope.launch {
@@ -67,9 +55,7 @@ class SleepTimer(
                                 triggerTime = -1L
                                 pauseWhenSongEnd = true
                                 if (!fadeOutEnabled) break
-                            } else {
-                                doStop(); break
-                            }
+                            } else { doStop(); break }
                         } else if (fadeOutEnabled) {
                             updateVolume(volumeForRemaining(remaining))
                         }
@@ -90,8 +76,13 @@ class SleepTimer(
         updateVolume(1f)
     }
 
-    /** Sisa waktu dalam ms, -1 jika tidak aktif */
-    fun remainingMs(): Long = if (triggerTime == -1L) -1L else (triggerTime - System.currentTimeMillis()).coerceAtLeast(0L)
+    fun remainingMs(): Long =
+        if (triggerTime == -1L) -1L
+        else (triggerTime - System.currentTimeMillis()).coerceAtLeast(0L)
+
+    fun notifySongTransition() {
+        if (pauseWhenSongEnd) doStop()
+    }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
         if (pauseWhenSongEnd) doStop()
@@ -124,8 +115,3 @@ class SleepTimer(
 
     private fun updateVolume(v: Float) = onVolumeMultiplierChanged(v)
 }
-
-    /** Dipanggil MusicViewModel saat lagu berganti */
-    fun notifySongTransition() {
-        if (pauseWhenSongEnd) doStop()
-    }

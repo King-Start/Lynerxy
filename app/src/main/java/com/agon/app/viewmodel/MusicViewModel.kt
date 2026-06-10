@@ -81,6 +81,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     private val _searchHistory      = MutableStateFlow<List<String>>(emptyList())
     val searchHistory: StateFlow<List<String>> = _searchHistory
 
+    private val _mediaType          = MutableStateFlow("Music")
+    val mediaType: StateFlow<String> = _mediaType
+    fun setMediaType(type: String) { _mediaType.value = type }
+
     // ── Player ────────────────────────────────────────────────
     private val _selectedTrack      = MutableStateFlow<Track?>(null)
     val selectedTrack: StateFlow<Track?> = _selectedTrack
@@ -578,7 +582,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 private fun Track.toSongEntity() = SongEntity(
     id = ytVideoId.ifBlank { saavnId.ifBlank { trackId.toString() } },
     title = trackName, artist = artistName,
-    album = collectionName, duration = trackTimeMillis / 1000,
+    album = collectionName, duration = (trackTimeMillis / 1000).toInt(),
     thumbnailUrl = artworkUrl100, audioUrl = previewUrl,
     lastPlayedTime = System.currentTimeMillis()
 )
