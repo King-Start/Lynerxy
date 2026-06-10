@@ -80,6 +80,7 @@ class SleepTimer(
         if (triggerTime == -1L) -1L
         else (triggerTime - System.currentTimeMillis()).coerceAtLeast(0L)
 
+    /** Dipanggil MusicViewModel saat lagu berganti */
     fun notifySongTransition() {
         if (pauseWhenSongEnd) doStop()
     }

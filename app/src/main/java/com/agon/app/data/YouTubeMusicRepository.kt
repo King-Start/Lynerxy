@@ -32,6 +32,7 @@ fun YtTrack.toTrack(): Track = Track(
 
 class YouTubeMusicRepository {
 
+    // ──── Search ────────────────────────────────────────────────────────────
     suspend fun search(query: String): List<YtTrack> = withContext(Dispatchers.IO) {
         try {
             val result = YouTube.search(query, YouTube.SearchFilter.FILTER_SONG)
@@ -51,6 +52,7 @@ class YouTubeMusicRepository {
         }
     }
 
+    // ──── Get Stream URL via Innertube player endpoint ──────────────────────
     suspend fun getStreamUrl(videoId: String): String = withContext(Dispatchers.IO) {
         try {
             val result = YouTube.player(videoId, client = YouTubeClient.ANDROID_NO_SDK)
@@ -58,6 +60,7 @@ class YouTubeMusicRepository {
                 val formats = playerResponse.streamingData?.adaptiveFormats
                     ?: playerResponse.streamingData?.formats
                     ?: return@withContext ""
+
                 formats
                     .filter { it.mimeType.startsWith("audio/") && it.url != null }
                     .maxByOrNull { it.bitrate }
@@ -69,6 +72,7 @@ class YouTubeMusicRepository {
         }
     }
 
+    // ──── Home / Top Charts ─────────────────────────────────────────────────
     suspend fun getTopCharts(): List<YtTrack> = withContext(Dispatchers.IO) {
         try {
             val result = YouTube.home()
@@ -90,6 +94,7 @@ class YouTubeMusicRepository {
         }
     }
 
+    // ──── Related Tracks via next endpoint ──────────────────────────────────
     suspend fun getRelatedTracks(videoId: String): List<YtTrack> = withContext(Dispatchers.IO) {
         try {
             val nextResult = YouTube.next(WatchEndpoint(videoId = videoId)).getOrNull()
@@ -112,6 +117,7 @@ class YouTubeMusicRepository {
         }
     }
 
+    // ──── Search Suggestions ────────────────────────────────────────────────
     suspend fun getSearchSuggestions(query: String): List<String> = withContext(Dispatchers.IO) {
         try {
             val result = YouTube.searchSuggestions(query)

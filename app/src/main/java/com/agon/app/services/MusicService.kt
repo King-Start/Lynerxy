@@ -1,33 +1,48 @@
 package com.agon.app.services
 
-import android.app.Service
+import android.app.*
 import android.content.Intent
 import android.os.IBinder
-import com.agon.app.utils.MusicPlayerManager
+import androidx.core.app.NotificationCompat
+import com.agon.app.MainActivity
+import timber.log.Timber
 
 class MusicService : Service() {
-    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val CHANNEL_ID = "music_playback"
+        const val NOTIF_ID = 1001
+        const val ACTION_PLAY  = "com.agon.app.PLAY"
+        const val ACTION_PAUSE = "com.agon.app.PAUSE"
+        const val ACTION_NEXT  = "com.agon.app.NEXT"
+        const val ACTION_PREV  = "com.agon.app.PREV"
+        const val ACTION_STOP  = "com.agon.app.STOP"
+        const val EXTRA_TITLE  = "title"
+        const val EXTRA_ARTIST = "artist"
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        MusicPlayerManager.updateNotification()
-        try {
-            startForeground(1001, createDummyNotification())
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        val title  = intent?.getStringExtra(EXTRA_TITLE)  ?: "Now Playing"
+        val artist = intent?.getStringExtra(EXTRA_ARTIST) ?: ""
+        startForeground(NOTIF_ID, buildNotification(title, artist))
+        Timber.d("MusicService started: $title")
         return START_STICKY
     }
 
-    private fun createDummyNotification(): android.app.Notification {
-        return android.app.Notification.Builder(this, "music_player_channel")
+    private fun buildNotification(title: String, artist: String): Notification {
+        val openIntent = PendingIntent.getActivity(
+            this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(artist)
             .setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("LyronixAi")
-            .setContentText("Music playing...")
+            .setContentIntent(openIntent)
+            .setOngoing(true)
+            .setSilent(true)
             .build()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        stopForeground(true)
-    }
+    override fun onBind(intent: Intent?): IBinder? = null
 }

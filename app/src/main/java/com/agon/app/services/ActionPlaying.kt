@@ -1,8 +1,4 @@
-﻿package com.agon.app.services
+package com.agon.app.services
 
-interface ActionPlaying {
-    fun nextClicked()
-    fun prevClicked()
-    fun playClicked()
-    fun onProgressChanged(progress: Int)
-}
+// Legacy file - kept for compatibility
+// Notification actions are now handled via MusicService

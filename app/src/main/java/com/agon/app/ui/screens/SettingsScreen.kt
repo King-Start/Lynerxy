@@ -1,151 +1,257 @@
 package com.agon.app.ui.screens
 
-import android.widget.Toast
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.auth.FirebaseAuth
+import com.agon.app.ui.theme.ThemeState
 import com.agon.app.viewmodel.MusicViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
-    val currentApiKey by viewModel.apiKey.collectAsState()
-    val currentProvider by viewModel.apiProvider.collectAsState()
-    val currentTheme by viewModel.themeMode.collectAsState()
+    val apiKey       by viewModel.apiKey.collectAsState()
+    val apiProvider  by viewModel.apiProvider.collectAsState()
     val apiValidation by viewModel.apiValidationResult.collectAsState()
+    val themeMode    by viewModel.themeMode.collectAsState()
+    val activeEq     by viewModel.activeEqProfile.collectAsState()
 
-    var apiKeyInput by remember(currentApiKey) { mutableStateOf(currentApiKey) }
-    var showKey by remember { mutableStateOf(false) }
-    var expandedProvider by remember { mutableStateOf(false) }
-    var selectedProvider by remember(currentProvider) { mutableStateOf(currentProvider) }
-    val providers = listOf("OpenAI", "Claude", "Gemini", "DeepSeek", "GLM", "Kimi", "Mistral", "GoAPI")
-    val context = LocalContext.current
+    var apiKeyInput      by remember(apiKey) { mutableStateOf(apiKey) }
+    var showKey          by remember { mutableStateOf(false) }
+    var selectedProvider by remember(apiProvider) { mutableStateOf(apiProvider) }
+    var expandProvider   by remember { mutableStateOf(false) }
+    var pureBlack        by remember { mutableStateOf(ThemeState.pureBlack) }
+
+    val providers = listOf("OpenAI","Claude","Gemini","DeepSeek","GLM","Kimi","Mistral","GoAPI")
+    val user = FirebaseAuth.getInstance().currentUser
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Settings", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0F0F0F), titleContentColor = Color.White, navigationIconContentColor = Color.White)
             )
-        }
+        },
+        containerColor = Color(0xFF0A0A0F)
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ── Theme ──────────────────────────────────────────
-            Text("Tema Aplikasi", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("dark" to "🌙 Dark", "light" to "☀️ Light", "amoled" to "⬛ AMOLED").forEach { (mode, label) ->
-                    FilterChip(
-                        selected = currentTheme == mode,
-                        onClick = { viewModel.setThemeMode(mode) },
-                        label = { Text(label, fontSize = 12.sp) }
-                    )
-                }
-            }
 
-            HorizontalDivider()
-
-            // ── API Config ─────────────────────────────────────
-            Text("API Configuration", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Text("Pilih AI Provider dan masukkan API Key lo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-            ExposedDropdownMenuBox(expanded = expandedProvider, onExpandedChange = { expandedProvider = !expandedProvider }) {
-                OutlinedTextField(
-                    value = selectedProvider, onValueChange = {}, readOnly = true,
-                    label = { Text("AI Provider") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedProvider) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                ExposedDropdownMenu(expanded = expandedProvider, onDismissRequest = { expandedProvider = false }) {
-                    providers.forEach { p ->
-                        DropdownMenuItem(text = { Text(p) }, onClick = { selectedProvider = p; expandedProvider = false })
+            // ── Account ────────────────────────────────────────
+            SettingsSection("Account") {
+                if (user != null) {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(Modifier.size(48.dp).clip(CircleShape).background(Color(0xFF7C3AED)), Alignment.Center) {
+                            Text(user.displayName?.firstOrNull()?.uppercase() ?: "?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(user.displayName ?: "User", color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Text(user.email ?: "", color = Color.White.copy(0.5f), fontSize = 12.sp)
+                        }
+                        TextButton(onClick = { FirebaseAuth.getInstance().signOut() }) {
+                            Text("Sign Out", color = Color(0xFFFF5252))
+                        }
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Person, null, tint = Color.White.copy(0.5f))
+                        Spacer(Modifier.width(12.dp))
+                        Text("Guest mode", color = Color.White.copy(0.6f))
                     }
                 }
             }
 
-            OutlinedTextField(
-                value = apiKeyInput, onValueChange = { apiKeyInput = it },
-                label = { Text("$selectedProvider API Key") },
-                modifier = Modifier.fillMaxWidth(),
-                leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
-                visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
-                shape = RoundedCornerShape(12.dp), singleLine = true
-            )
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = showKey, onCheckedChange = { showKey = it })
-                Text("Tampilkan API Key", fontSize = 14.sp)
+            // ── Appearance ─────────────────────────────────────
+            SettingsSection("Appearance") {
+                SettingsItem(Icons.Default.DarkMode, "Theme") {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("Dark","Light","System").forEach { mode ->
+                            FilterChip(
+                                selected = themeMode == mode,
+                                onClick = { viewModel.setThemeMode(mode) },
+                                label = { Text(mode, fontSize = 12.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFF7C3AED),
+                                    selectedLabelColor = Color.White,
+                                    containerColor = Color(0xFF2A2A3E),
+                                    labelColor = Color.White.copy(0.7f)
+                                )
+                            )
+                        }
+                    }
+                }
+                SettingsDivider()
+                SettingsToggle(Icons.Default.Contrast, "Pure Black Background", pureBlack) {
+                    pureBlack = it
+                    ThemeState.pureBlack = it
+                }
             }
 
-            if (apiValidation != null) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                    shape = RoundedCornerShape(8.dp)
-                ) { Text(apiValidation!!, modifier = Modifier.padding(12.dp), fontSize = 13.sp) }
+            // ── AI API ─────────────────────────────────────────
+            SettingsSection("AI Configuration") {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // Provider dropdown
+                    ExposedDropdownMenuBox(expanded = expandProvider, onExpandedChange = { expandProvider = it }) {
+                        OutlinedTextField(
+                            value = selectedProvider,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("AI Provider") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expandProvider) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            colors = outlinedTextFieldColors()
+                        )
+                        ExposedDropdownMenu(expanded = expandProvider, onDismissRequest = { expandProvider = false }, containerColor = Color(0xFF1E1E2E)) {
+                            providers.forEach { p ->
+                                DropdownMenuItem(
+                                    text = { Text(p, color = Color.White) },
+                                    onClick = { selectedProvider = p; expandProvider = false }
+                                )
+                            }
+                        }
+                    }
+                    // API Key
+                    OutlinedTextField(
+                        value = apiKeyInput,
+                        onValueChange = { apiKeyInput = it },
+                        label = { Text("API Key") },
+                        placeholder = { Text("sk-...", color = Color.White.copy(0.3f)) },
+                        visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { showKey = !showKey }) {
+                                Icon(if (showKey) Icons.Default.VisibilityOff else Icons.Default.Visibility, null, tint = Color.White.copy(0.5f))
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = outlinedTextFieldColors()
+                    )
+                    // Provider links
+                    Text("Free APIs: Gemini → aistudio.google.com | DeepSeek → platform.deepseek.com", color = Color.White.copy(0.35f), fontSize = 11.sp)
+                    // Buttons
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { viewModel.validateApiKey() },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFA78BFA))
+                        ) { Text("Validate") }
+                        Button(
+                            onClick = { viewModel.saveApiConfig(apiKeyInput, selectedProvider) },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED))
+                        ) { Text("Save") }
+                    }
+                    // Validation result
+                    if (!apiValidation.isNullOrBlank()) {
+                        Surface(shape = RoundedCornerShape(10.dp), color = Color.White.copy(0.06f), modifier = Modifier.fillMaxWidth()) {
+                            Text(apiValidation!!, color = Color.White, fontSize = 13.sp, modifier = Modifier.padding(12.dp))
+                        }
+                    }
+                }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = {
-                        if (apiKeyInput.isBlank()) { Toast.makeText(context, "API Key kosong!", Toast.LENGTH_SHORT).show(); return@Button }
-                        viewModel.saveApiConfig(apiKeyInput.trim(), selectedProvider)
-                        Toast.makeText(context, "✅ Tersimpan! Provider: $selectedProvider", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.weight(1f).height(50.dp), shape = RoundedCornerShape(12.dp)
-                ) { Text("Simpan", fontWeight = FontWeight.Bold) }
-
-                OutlinedButton(
-                    onClick = {
-                        viewModel.saveApiConfig(apiKeyInput.trim(), selectedProvider)
-                        viewModel.validateApiKey()
-                    },
-                    modifier = Modifier.weight(1f).height(50.dp), shape = RoundedCornerShape(12.dp)
-                ) { Text("Test Key") }
+            // ── Playback ───────────────────────────────────────
+            SettingsSection("Playback") {
+                SettingsItem(Icons.Default.Equalizer, "Active EQ Profile") {
+                    Text(activeEq?.name ?: "Off", color = Color(0xFFA78BFA), fontSize = 13.sp)
+                }
+                SettingsDivider()
+                SettingsItem(Icons.Default.HighQuality, "Audio Quality") {
+                    Text("Best Available", color = Color.White.copy(0.5f), fontSize = 13.sp)
+                }
+                SettingsDivider()
+                SettingsItem(Icons.Default.CenterFocusStrong, "Stream Source") {
+                    Text("YouTube Music", color = Color.White.copy(0.5f), fontSize = 13.sp)
+                }
             }
 
-            HorizontalDivider()
+            // ── Storage ────────────────────────────────────────
+            SettingsSection("Storage") {
+                SettingsItem(Icons.Default.FolderOpen, "Download Location") {
+                    Text("Internal Storage", color = Color.White.copy(0.5f), fontSize = 13.sp)
+                }
+                SettingsDivider()
+                SettingsItem(Icons.Default.Delete, "Clear Cache") {
+                    TextButton(onClick = {}) { Text("Clear", color = Color(0xFFFF5252), fontSize = 13.sp) }
+                }
+            }
 
-            // ── Provider Info ──────────────────────────────────
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("🔑 Cara dapet API Key GRATIS:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    listOf(
-                        "Gemini → aistudio.google.com (GRATIS)",
-                        "DeepSeek → platform.deepseek.com (MURAH)",
-                        "Claude → console.anthropic.com",
-                        "OpenAI → platform.openai.com",
-                        "GLM → open.bigmodel.cn (GRATIS)",
-                        "Kimi → platform.moonshot.cn",
-                        "Mistral → console.mistral.ai (ada free tier)"
-                    ).forEach { Text("• $it", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            // ── About ──────────────────────────────────────────
+            SettingsSection("About") {
+                SettingsItem(Icons.Default.Info, "Version") {
+                    Text("1.0.0", color = Color.White.copy(0.5f), fontSize = 13.sp)
+                }
+                SettingsDivider()
+                SettingsItem(Icons.Default.Code, "Powered by") {
+                    Text("LyronixAi + RythimMusic", color = Color.White.copy(0.5f), fontSize = 11.sp)
                 }
             }
         }
     }
 }
+
+@Composable
+fun SettingsSection(title: String, content: @Composable () -> Unit) {
+    Column {
+        Text(title.uppercase(), color = Color(0xFFA78BFA), fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp, modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
+        Surface(shape = RoundedCornerShape(16.dp), color = Color(0xFF141428), modifier = Modifier.fillMaxWidth()) {
+            content()
+        }
+    }
+}
+
+@Composable
+fun SettingsItem(icon: ImageVector, label: String, trailing: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = Color.White.copy(0.6f), modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(14.dp))
+        Text(label, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        trailing()
+    }
+}
+
+@Composable
+fun SettingsToggle(icon: ImageVector, label: String, checked: Boolean, onToggle: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = Color.White.copy(0.6f), modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(14.dp))
+        Text(label, color = Color.White, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onToggle, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF7C3AED), checkedTrackColor = Color(0x557C3AED)))
+    }
+}
+
+@Composable
+fun SettingsDivider() = HorizontalDivider(color = Color.White.copy(0.06f), modifier = Modifier.padding(horizontal = 16.dp))
+
+@Composable
+fun outlinedTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = Color(0xFFA78BFA),
+    unfocusedBorderColor = Color.White.copy(0.15f),
+    focusedLabelColor = Color(0xFFA78BFA),
+    unfocusedLabelColor = Color.White.copy(0.4f),
+    focusedTextColor = Color.White,
+    unfocusedTextColor = Color.White,
+    cursorColor = Color(0xFFA78BFA)
+)
