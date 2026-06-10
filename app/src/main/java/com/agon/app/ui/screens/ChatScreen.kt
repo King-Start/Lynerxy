@@ -1,6 +1,7 @@
 package com.agon.app.ui.screens
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -155,7 +156,8 @@ fun ChatScreen(viewModel: MusicViewModel, onOpenDrawer: () -> Unit = {}) {
                             focusedTextColor = Color.White,
                             unfocusedTextColor = Color.White,
                             cursorColor = Color(0xFFA78BFA),
-                            containerColor = Color.White.copy(0.04f)
+                            unfocusedContainerColor = Color.White.copy(0.04f),
+                    focusedContainerColor = Color.White.copy(0.06f)
                         ),
                         shape = RoundedCornerShape(16.dp)
                     )

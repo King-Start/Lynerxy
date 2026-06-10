@@ -152,7 +152,7 @@ fun FavoritesTab(favorites: List<FavoriteTrack>, onPlay: (Track) -> Unit) {
     } else {
         LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
             items(favorites) { fav ->
-                val track = Track(trackId = fav.trackId, trackName = fav.trackName, artistName = fav.artistName, artworkUrl100 = fav.artworkUrl100, previewUrl = fav.previewUrl, primaryGenreName = fav.genre)
+                val track = Track(trackId = fav.trackId, trackName = fav.trackName, artistName = fav.artistName, artworkUrl100 = fav.artworkUrl100, previewUrl = fav.previewUrl, primaryGenreName = fav.primaryGenreName)
                 Row(
                     Modifier.fillMaxWidth().clickable { onPlay(track) }.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)
