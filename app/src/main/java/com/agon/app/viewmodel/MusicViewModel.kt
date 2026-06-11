@@ -202,13 +202,23 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun setThemeMode(mode: String) { settingsRepo.saveThemeMode(mode); _themeMode.value = mode }
     fun validateApiKey() {
-        viewModelScope.launch {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             val key = _apiKey.value.trim()
             if (key.isBlank()) { _apiValidationResult.value = "❌ API Key kosong!"; return@launch }
-            _apiValidationResult.value = "⏳ Memvalidasi..."
-            val result = aiRepo.generateResponse("Say: OK", key, _apiProvider.value)
-            _apiValidationResult.value = if (result.startsWith("ERROR")) "❌ Key tidak valid: $result"
-            else "✅ API Key valid! Provider: ${_apiProvider.value}"
+            _apiValidationResult.value = "⏳ Memvalidasi ${_apiProvider.value}..."
+            try {
+                val result = aiRepo.generateResponse("Reply with exactly: VALID", key, _apiProvider.value)
+                _apiValidationResult.value = when {
+                    result.startsWith("ERROR_CONNECTION") -> "❌ Gagal konek. Cek internet."
+                    result.startsWith("ERROR_401") -> "❌ API Key salah / expired."
+                    result.startsWith("ERROR_403") -> "❌ Akses ditolak. Cek plan API."
+                    result.startsWith("ERROR_429") -> "⚠️ Rate limit. Coba lagi sebentar."
+                    result.startsWith("ERROR") -> "❌ Error: ${result.take(80)}"
+                    else -> "✅ Valid! ${_apiProvider.value} siap digunakan."
+                }
+            } catch (e: Exception) {
+                _apiValidationResult.value = "❌ Exception: ${e.message?.take(60)}"
+            }
         }
     }
 
@@ -395,21 +405,38 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             _isLyricsLoading.value = false
         }
 
-        // Audio
-        viewModelScope.launch {
-            val audioUrl = when {
-                track.ytVideoId.isNotBlank() -> try { ytMusicRepo.getStreamUrl(track.ytVideoId).ifBlank { track.previewUrl } } catch (_: Exception) { track.previewUrl }
-                track.fullAudioUrl.isNotBlank() && !track.fullAudioUrl.startsWith("ytmusic://") -> track.fullAudioUrl
-                track.saavnId.isNotBlank() -> try {
-                    val song = saavnApi.getSongById(track.saavnId)
-                    val url = song?.downloadUrl?.lastOrNull()?.url ?: ""
-                    if (url.startsWith("http:")) url.replace("http:", "https:") else url.ifBlank { track.previewUrl }
-                } catch (_: Exception) { track.previewUrl }
-                else -> track.previewUrl
-            }
-            if (audioUrl.isNotBlank()) {
-                MusicPlayerManager.SONG_URL = audioUrl
-                MusicPlayerManager.prepareMediaPlayer()
+        // Audio - fetch di IO thread, play di Main thread
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val audioUrl = when {
+                    track.ytVideoId.isNotBlank() -> {
+                        val url = try { ytMusicRepo.getStreamUrl(track.ytVideoId) } catch (_: Exception) { "" }
+                        url.ifBlank { track.previewUrl }
+                    }
+                    track.fullAudioUrl.isNotBlank() && !track.fullAudioUrl.startsWith("ytmusic://") ->
+                        track.fullAudioUrl
+                    track.saavnId.isNotBlank() -> try {
+                        val song = saavnApi.getSongById(track.saavnId)
+                        val url = song?.downloadUrl?.lastOrNull()?.url ?: ""
+                        (if (url.startsWith("http:")) url.replace("http:", "https:") else url).ifBlank { track.previewUrl }
+                    } catch (_: Exception) { track.previewUrl }
+                    else -> track.previewUrl
+                }
+                if (audioUrl.isNotBlank()) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        MusicPlayerManager.SONG_URL = audioUrl
+                        MusicPlayerManager.prepareMediaPlayer()
+                    }
+                }
+                Timber.d("Audio URL: $audioUrl")
+            } catch (e: Exception) {
+                Timber.e(e, "fetchAudio failed")
+                if (track.previewUrl.isNotBlank()) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        MusicPlayerManager.SONG_URL = track.previewUrl
+                        MusicPlayerManager.prepareMediaPlayer()
+                    }
+                }
             }
         }
     }

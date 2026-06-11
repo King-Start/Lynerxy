@@ -85,13 +85,14 @@ fun SettingsScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
 
             // ── Appearance ─────────────────────────────────────
             SettingsSection("Appearance") {
-                SettingsItem(Icons.Default.DarkMode, "Theme") {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Theme", color = Color.White.copy(0.6f), fontSize = 12.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("Dark","Light","System").forEach { mode ->
                             FilterChip(
                                 selected = themeMode == mode,
                                 onClick = { viewModel.setThemeMode(mode) },
-                                label = { Text(mode, fontSize = 12.sp) },
+                                label = { Text(mode, fontSize = 13.sp) },
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = Color(0xFF7C3AED),
                                     selectedLabelColor = Color.White,

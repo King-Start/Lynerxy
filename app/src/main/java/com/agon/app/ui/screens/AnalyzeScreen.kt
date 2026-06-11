@@ -157,12 +157,12 @@ fun FavoritesTab(favorites: List<FavoriteTrack>, onPlay: (Track) -> Unit) {
                     Modifier.fillMaxWidth().clickable { onPlay(track) }.padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    AsyncImage(model = fav.artworkUrl100, contentDescription = null, modifier = Modifier.size(50.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
+                    coil3.compose.AsyncImage(model = fav.artworkUrl100, contentDescription = null, modifier = Modifier.size(50.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
                     Column(Modifier.weight(1f)) {
-                        Text(fav.trackName, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(fav.artistName, color = Color.White.copy(0.5f), fontSize = 12.sp)
+                        Text(fav.trackName, color = androidx.compose.ui.graphics.Color.White, fontSize = 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        Text(fav.artistName, color = androidx.compose.ui.graphics.Color.White.copy(0.5f), fontSize = 12.sp)
                     }
-                    Icon(Icons.Default.Favorite, null, tint = Color(0xFFFF4081), modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.Favorite, null, tint = androidx.compose.ui.graphics.Color(0xFFFF4081), modifier = Modifier.size(18.dp))
                 }
             }
         }
