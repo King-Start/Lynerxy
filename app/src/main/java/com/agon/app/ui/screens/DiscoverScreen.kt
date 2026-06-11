@@ -12,6 +12,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,7 +77,14 @@ fun DiscoverScreen(
                     focusedTextColor = Color.White,
                     unfocusedTextColor = Color.White,
                     cursorColor = Color(0xFFA78BFA),
-                    containerColor = Color.White.copy(0.06f)
+                    unfocusedContainerColor = Color.White.copy(0.06f),
+                    focusedContainerColor = Color.White.copy(0.08f),
+                    focusedPlaceholderColor = Color.White.copy(0.4f),
+                    unfocusedPlaceholderColor = Color.White.copy(0.4f),
+                    focusedLeadingIconColor = Color.White.copy(0.5f),
+                    unfocusedLeadingIconColor = Color.White.copy(0.5f),
+                    focusedTrailingIconColor = Color.White.copy(0.5f),
+                    unfocusedTrailingIconColor = Color.White.copy(0.5f)
                 ),
                 shape = RoundedCornerShape(16.dp)
             )
@@ -109,13 +117,7 @@ fun DiscoverScreen(
                 selectedTabIndex = selectedTab,
                 containerColor = Color.Transparent,
                 contentColor = Color(0xFFA78BFA),
-                edgePadding = 16.dp,
-                indicator = { tabs ->
-                    TabRowDefaults.SecondaryIndicator(
-                        Modifier.tabIndicatorOffset(tabs[selectedTab]),
-                        color = Color(0xFFA78BFA)
-                    )
-                }
+                edgePadding = 16.dp
             ) {
                 listOf("Home", "Charts", "Genre", "Library").forEachIndexed { idx, tab ->
                     Tab(
