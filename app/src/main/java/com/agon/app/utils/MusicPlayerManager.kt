@@ -12,6 +12,7 @@ import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import com.agon.app.eq.EqualizerManager
 import timber.log.Timber
 
 @SuppressLint("StaticFieldLeak")
@@ -21,61 +22,64 @@ object MusicPlayerManager {
     var player: ExoPlayer? = null
         private set
 
-    var SONG_URL         = ""
-    var MUSIC_ID         = ""
-    var MUSIC_TITLE      = ""
-    var MUSIC_DESCRIPTION= ""
-    var IMAGE_URL        = ""
-    var trackQueue       = mutableListOf<String>()
-    var track_position   = 0
+    // Variabel yang dipakai di MusicViewModel
+    var SONG_URL = ""
+    var MUSIC_ID = ""
+    var MUSIC_TITLE = ""
+    var MUSIC_DESCRIPTION = ""
+    var IMAGE_URL = ""
+    var trackQueue = mutableListOf<String>()
+    var track_position = 0
     var onTrackChanged: (() -> Unit)? = null
 
-    // Harus dipanggil dari Main thread
     fun init(context: Context) {
         if (player != null) return
+
         try {
-            val http = DefaultHttpDataSource.Factory()
-                .setUserAgent("Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.91 Mobile Safari/537.36")
-                .setConnectTimeoutMs(20_000)
-                .setReadTimeoutMs(30_000)
+            val httpDataSourceFactory = DefaultHttpDataSource.Factory()
+                .setUserAgent("Mozilla/5.0 (Linux; Android 11; Pixel 5) AppleWebKit/537.36")
+                .setConnectTimeoutMs(15000)
+                .setReadTimeoutMs(20000)
                 .setAllowCrossProtocolRedirects(true)
 
-            val ds = DefaultDataSource.Factory(context.applicationContext, http)
+            val dataSourceFactory = DefaultDataSource.Factory(context.applicationContext, httpDataSourceFactory)
 
             player = ExoPlayer.Builder(context.applicationContext)
-                .setMediaSourceFactory(DefaultMediaSourceFactory(ds))
+                .setMediaSourceFactory(DefaultMediaSourceFactory(dataSourceFactory))
                 .build()
-                .apply {
-                    addListener(object : Player.Listener {
-                        override fun onPlaybackStateChanged(state: Int) {
-                            if (state == Player.STATE_ENDED) onTrackChanged?.invoke()
-                        }
-                        override fun onPlayerError(error: PlaybackException) {
-                            Timber.e(error, "ExoPlayer error")
-                        }
-                    })
+
+            player?.addListener(object : Player.Listener {
+                override fun onPlaybackStateChanged(state: Int) {
+                    if (state == Player.STATE_ENDED) {
+                        onTrackChanged?.invoke()
+                    }
                 }
-            Timber.d("MusicPlayerManager init ok")
+
+                override fun onPlayerError(error: PlaybackException) {
+                    Timber.e(error, "ExoPlayer Error")
+                }
+            })
+
+            Timber.d("✅ MusicPlayerManager initialized successfully")
         } catch (e: Exception) {
-            Timber.e(e, "MusicPlayerManager init failed")
+            Timber.e(e, "Failed to initialize MusicPlayerManager")
         }
     }
 
-    // Harus dipanggil dari Main thread
     fun prepareMediaPlayer() {
         val url = SONG_URL.trim()
-        if (url.isBlank()) {
-            Timber.w("prepareMediaPlayer: URL kosong")
+        if (url.isBlank() || player == null) {
+            Timber.w("prepareMediaPlayer: URL kosong atau player null")
             return
         }
+
         try {
-            val p = player ?: run { Timber.w("player null"); return }
-            p.stop()
-            p.clearMediaItems()
-            p.setMediaItem(MediaItem.fromUri(Uri.parse(url)))
-            p.prepare()
-            p.playWhenReady = true
-            Timber.d("prepareMediaPlayer: $url")
+            player?.stop()
+            player?.clearMediaItems()
+            player?.setMediaItem(MediaItem.fromUri(Uri.parse(url)))
+            player?.prepare()
+            player?.playWhenReady = true
+            Timber.d("Playing: $url")
         } catch (e: Exception) {
             Timber.e(e, "prepareMediaPlayer failed")
         }
@@ -87,8 +91,14 @@ object MusicPlayerManager {
         }
     }
 
+    fun seekTo(ms: Long) {
+        player?.seekTo(ms)
+    }
+
     fun release() {
-        try { player?.release() } catch (_: Exception) {}
+        try {
+            player?.release()
+        } catch (_: Exception) {}
         player = null
     }
 }

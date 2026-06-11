@@ -5,7 +5,7 @@ import com.agon.innertube.models.SongItem
 import com.agon.innertube.models.YouTubeClient
 import com.agon.innertube.models.WatchEndpoint
 import com.agon.innertube.models.response.PlayerResponse
-import com.agon.innertube.pages.NewPipeExtractor
+import com.agon.innertube.NewPipeExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -68,10 +68,10 @@ class YouTubeMusicRepository {
         // Strategy 3: NewPipeExtractor — full JS deobfuscation
         try {
             val streams = NewPipeExtractor.newPipePlayer(videoId)
-            // Pilih audio stream: itag 251=opus/160k, 140=m4a/128k, 250=opus/70k
             val preferred = listOf(251, 140, 250, 139, 249)
-            val url = preferred.firstNotNullOfOrNull { itag -> streams.find { it.first == itag }?.second }
-                ?: streams.firstOrNull()?.second ?: ""
+            val url = preferred.firstNotNullOfOrNull { itag ->
+                streams.firstOrNull { pair -> pair.first == itag }?.second
+            } ?: streams.firstOrNull()?.second ?: ""
             if (url.isNotBlank()) { Timber.d("S3 NewPipe ok: $videoId"); return@withContext url }
         } catch (e: Exception) {
             Timber.e(e, "S3 NewPipe failed: $videoId")
