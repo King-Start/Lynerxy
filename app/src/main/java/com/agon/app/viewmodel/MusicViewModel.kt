@@ -374,89 +374,95 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun fetchLyricsAndPlay(track: Track) {
-        MusicPlayerManager.MUSIC_ID = track.ytVideoId.ifBlank { track.saavnId.ifBlank { track.trackId.toString() } }
-        MusicPlayerManager.MUSIC_TITLE = track.trackName
-        MusicPlayerManager.MUSIC_DESCRIPTION = track.artistName
-        MusicPlayerManager.IMAGE_URL = track.artworkUrl100.replace("100x100", "500x500")
-        val queueIds = _queue.value.map { it.ytVideoId.ifBlank { it.saavnId.ifBlank { it.trackId.toString() } } }
-        if (queueIds.isNotEmpty()) {
-            MusicPlayerManager.trackQueue = queueIds.toMutableList()
-            MusicPlayerManager.track_position = _queue.value.indexOfFirst { it.trackId == track.trackId }
+    MusicPlayerManager.MUSIC_ID = track.ytVideoId.ifBlank { track.saavnId.ifBlank { track.trackId.toString() } }
+    MusicPlayerManager.MUSIC_TITLE = track.trackName
+    MusicPlayerManager.MUSIC_DESCRIPTION = track.artistName
+    MusicPlayerManager.IMAGE_URL = track.artworkUrl100.replace("100x100", "500x500")
+
+    val queueIds = _queue.value.map { it.ytVideoId.ifBlank { it.saavnId.ifBlank { it.trackId.toString() } } }
+    if (queueIds.isNotEmpty()) {
+        MusicPlayerManager.trackQueue = queueIds.toMutableList()
+        MusicPlayerManager.track_position = _queue.value.indexOfFirst { it.trackId == track.trackId }
+    }
+
+    // ================== FULL AUDIO (Bukan 30 Detik) ==================
+    viewModelScope.launch(Dispatchers.IO) {
+        var audioUrl = ""
+
+        try {
+            // 1. YouTube Music Full Stream (seperti Rythim Music)
+            if (track.ytVideoId.isNotBlank()) {
+                audioUrl = try {
+                    ytMusicRepo.getStreamUrl(track.ytVideoId)
+                } catch (e: Exception) { "" }
+            }
+
+            // 2. Saavn Full Audio
+            if (audioUrl.isBlank() && track.saavnId.isNotBlank()) {
+                audioUrl = try {
+                    val song = saavnApi.getSongById(track.saavnId)
+                    val url = song?.downloadUrl?.lastOrNull()?.url ?: ""
+                    if (url.startsWith("http:")) url.replace("http:", "https:") else url
+                } catch (e: Exception) { "" }
+            }
+
+            // 3. Fallback
+            if (audioUrl.isBlank()) {
+                audioUrl = track.fullAudioUrl.ifBlank { track.previewUrl }
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Fetch full audio failed")
+            audioUrl = track.previewUrl
         }
 
-        // Lyrics — cek cache DB dulu
-        viewModelScope.launch {
-            _isLyricsLoading.value = true
-            val songId = track.ytVideoId.ifBlank { track.saavnId.ifBlank { track.trackId.toString() } }
-            val cached = db.musicDao().getLyrics(songId)
-            if (cached != null && cached.lyrics.isNotBlank()) {
-                applyLyrics(cached.lyrics, cached.isSynced)
+        withContext(Dispatchers.Main) {
+            MusicPlayerManager.SONG_URL = audioUrl
+            MusicPlayerManager.prepareMediaPlayer()
+            Timber.d("▶️ Full Audio: $audioUrl")
+            _isBuffering.value = false
+        }
+    }
+
+    // ================== LYRICS (tetap) ==================
+    viewModelScope.launch {
+        _isLyricsLoading.value = true
+        val songId = track.ytVideoId.ifBlank { track.saavnId.ifBlank { track.trackId.toString() } }
+
+        val cached = db.musicDao().getLyrics(songId)
+        if (cached != null && cached.lyrics.isNotBlank()) {
+            applyLyrics(cached.lyrics, cached.isSynced)
+        } else {
+            val result = LyricsRegistry.getLyrics(track.trackName, track.artistName)
+            if (result.raw != null) {
+                db.musicDao().upsertLyrics(LyricsEntity(songId, result.raw, result.isSynced, result.source ?: ""))
+                applyLyrics(result.raw, result.isSynced)
             } else {
-                val result = LyricsRegistry.getLyrics(track.trackName, track.artistName)
-                if (result.raw != null) {
-                    db.musicDao().upsertLyrics(LyricsEntity(songId, result.raw, result.isSynced, result.source ?: ""))
-                    applyLyrics(result.raw, result.isSynced)
+                val lyricsText = try {
+                    when {
+                        track.saavnId.isNotBlank() -> saavnApi.getLyrics(track.saavnId)
+                        else -> musicRepo.getLyrics(track.artistName, track.trackName)
+                    }
+                } catch (_: Exception) { null }
+
+                if (lyricsText != null) {
+                    db.musicDao().upsertLyrics(LyricsEntity(songId, lyricsText, lyricsLooksSynced(lyricsText), "saavn"))
+                    applyLyrics(lyricsText, lyricsLooksSynced(lyricsText))
                 } else {
-                    // Fallback Saavn/iTunes
-                    val lyricsText = try {
-                        when {
-                            track.saavnId.isNotBlank() -> saavnApi.getLyrics(track.saavnId)
-                            else -> musicRepo.getLyrics(track.artistName, track.trackName)
-                        }
-                    } catch (_: Exception) { null }
-                    if (lyricsText != null) {
-                        db.musicDao().upsertLyrics(LyricsEntity(songId, lyricsText, lyricsLooksSynced(lyricsText), "saavn"))
-                        applyLyrics(lyricsText, lyricsLooksSynced(lyricsText))
-                    } else {
-                        _lyrics.value = "Lyrics not found."
-                    }
-                }
-            }
-            _isLyricsLoading.value = false
-        }
-
-        // Audio - fetch di IO thread, play di Main thread
-        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val audioUrl = when {
-                    track.ytVideoId.isNotBlank() -> {
-                        val url = try { ytMusicRepo.getStreamUrl(track.ytVideoId) } catch (_: Exception) { "" }
-                        url.ifBlank { track.previewUrl }
-                    }
-                    track.fullAudioUrl.isNotBlank() && !track.fullAudioUrl.startsWith("ytmusic://") ->
-                        track.fullAudioUrl
-                    track.saavnId.isNotBlank() -> try {
-                        val song = saavnApi.getSongById(track.saavnId)
-                        val url = song?.downloadUrl?.lastOrNull()?.url ?: ""
-                        (if (url.startsWith("http:")) url.replace("http:", "https:") else url).ifBlank { track.previewUrl }
-                    } catch (_: Exception) { track.previewUrl }
-                    else -> track.previewUrl
-                }
-                if (audioUrl.isNotBlank()) {
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        MusicPlayerManager.SONG_URL = audioUrl
-                        MusicPlayerManager.prepareMediaPlayer()
-                    }
-                }
-                Timber.d("Audio URL: $audioUrl")
-            } catch (e: Exception) {
-                Timber.e(e, "fetchAudio failed")
-                if (track.previewUrl.isNotBlank()) {
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        MusicPlayerManager.SONG_URL = track.previewUrl
-                        MusicPlayerManager.prepareMediaPlayer()
-                    }
+                    _lyrics.value = "Lyrics not found."
                 }
             }
         }
+        _isLyricsLoading.value = false
     }
 
-    private fun applyLyrics(raw: String, synced: Boolean) {
-        _lyrics.value = raw
-        _lyricsIsSynced.value = synced
-        _lyricsEntries.value = if (synced) parseLrc(raw) else emptyList()
-    }
+    fetchRelated(track)
+}
 
+private fun applyLyrics(raw: String, synced: Boolean) {
+    _lyrics.value = raw
+    _lyricsIsSynced.value = synced
+    _lyricsEntries.value = if (synced) parseLrc(raw) else emptyList()
+}
     private fun fetchRelated(track: Track) {
         viewModelScope.launch {
             try {
