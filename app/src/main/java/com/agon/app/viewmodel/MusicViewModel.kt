@@ -5,6 +5,7 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import timber.log.Timber
 import com.agon.app.alarm.MusicAlarmEntry
 import com.agon.app.alarm.MusicAlarmScheduler
 import com.agon.app.alarm.MusicAlarmStore
@@ -347,20 +348,29 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Track Selection & Playback ────────────────────────────
     fun selectTrack(track: Track, playlistTracks: List<Track> = emptyList()) {
-        _selectedTrack.value = track
-        _lyrics.value = null; _lyricsEntries.value = emptyList(); _currentLyricsIndex.value = -1
-        stopAudio()
-        if (playlistTracks.isNotEmpty()) _queue.value = playlistTracks
-        else if (_searchResults.value.contains(track)) _queue.value = _searchResults.value
-        else if (_topCharts.value.contains(track)) _queue.value = _topCharts.value
-
-        viewModelScope.launch {
-            db.musicDao().upsertSong(track.toSongEntity())
-            db.musicDao().incrementPlayTime(track.toSongEntity().id, 0L)
+        try {
+            _selectedTrack.value = track
+            _lyrics.value = null
+            _lyricsEntries.value = emptyList()
+            _currentLyricsIndex.value = -1
+            _isBuffering.value = true
+            stopAudio()
+            when {
+                playlistTracks.isNotEmpty() -> _queue.value = playlistTracks
+                _searchResults.value.any { it.trackId == track.trackId } -> _queue.value = _searchResults.value
+                _topCharts.value.any { it.trackId == track.trackId } -> _queue.value = _topCharts.value
+            }
+            viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                try {
+                    db.musicDao().upsertSong(track.toSongEntity())
+                    db.musicDao().incrementPlayTime(track.toSongEntity().id, 0L)
+                } catch (_: Exception) {}
+            }
+            fetchLyricsAndPlay(track)
+            fetchRelated(track)
+        } catch (e: Exception) {
+            Timber.e(e, "selectTrack failed")
         }
-
-        fetchLyricsAndPlay(track)
-        fetchRelated(track)
     }
 
     private fun fetchLyricsAndPlay(track: Track) {
@@ -508,7 +518,12 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Player Controls ───────────────────────────────────────
     fun togglePlayPause() { MusicPlayerManager.togglePlayPause() }
-    fun stopAudio() { MusicPlayerManager.player?.stop(); _isPlaying.value = false; _currentPosition.value = 0 }
+    fun stopAudio() {
+        try { MusicPlayerManager.player?.stop() } catch (_: Exception) {}
+        _isPlaying.value = false
+        _currentPosition.value = 0
+        _isBuffering.value = false
+    }
     fun seekTo(ms: Int) { MusicPlayerManager.player?.seekTo(ms.toLong()); _currentPosition.value = ms }
     fun skipForward() = seekTo((_currentPosition.value + 10000).coerceAtMost(_duration.value))
     fun skipBackward() = seekTo((_currentPosition.value - 10000).coerceAtLeast(0))

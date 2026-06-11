@@ -84,7 +84,7 @@ fun MainApp() {
         ) { inner ->
             NavHost(
                 navController,
-                startDestination = "login",
+                startDestination = "discover",
                 modifier = Modifier.fillMaxSize().padding(inner)
             ) {
                 composable("login") {

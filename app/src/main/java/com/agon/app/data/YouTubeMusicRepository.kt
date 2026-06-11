@@ -4,7 +4,8 @@ import com.agon.innertube.YouTube
 import com.agon.innertube.models.SongItem
 import com.agon.innertube.models.YouTubeClient
 import com.agon.innertube.models.WatchEndpoint
-import com.agon.innertube.models.BrowseEndpoint
+import com.agon.innertube.models.response.PlayerResponse
+import com.agon.innertube.pages.NewPipeExtractor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -20,29 +21,29 @@ data class YtTrack(
 )
 
 fun YtTrack.toTrack(): Track = Track(
-    trackId = videoId.hashCode().toLong(),
+    trackId   = videoId.hashCode().toLong(),
     trackName = title,
-    artistName = artist,
+    artistName= artist,
     collectionName = album,
-    artworkUrl100 = thumbnailUrl,
-    previewUrl = streamUrl,
-    ytVideoId = videoId,
-    durationSeconds = durationSeconds
+    artworkUrl100  = thumbnailUrl,
+    previewUrl     = streamUrl,
+    ytVideoId      = videoId,
+    durationSeconds= durationSeconds
 )
 
 class YouTubeMusicRepository {
 
-    // ──── Search ────────────────────────────────────────────────────────────
+    // ── Search ────────────────────────────────────────────────
     suspend fun search(query: String): List<YtTrack> = withContext(Dispatchers.IO) {
         try {
             val result = YouTube.search(query, YouTube.SearchFilter.FILTER_SONG)
             result.getOrNull()?.items?.filterIsInstance<SongItem>()?.map { song ->
                 YtTrack(
-                    videoId = song.id,
-                    title = song.title,
-                    artist = song.artists.joinToString(", ") { it.name },
-                    album = song.album?.name ?: "",
-                    thumbnailUrl = song.thumbnail ?: "",
+                    videoId       = song.id,
+                    title         = song.title,
+                    artist        = song.artists.joinToString(", ") { it.name },
+                    album         = song.album?.name ?: "",
+                    thumbnailUrl  = song.thumbnail ?: "",
                     durationSeconds = song.duration ?: 0
                 )
             } ?: emptyList()
@@ -52,38 +53,71 @@ class YouTubeMusicRepository {
         }
     }
 
-    // ──── Get Stream URL via Innertube player endpoint ──────────────────────
+    // ── Get Stream URL — multi-strategy ───────────────────────
     suspend fun getStreamUrl(videoId: String): String = withContext(Dispatchers.IO) {
-        try {
-            val result = YouTube.player(videoId, client = YouTubeClient.ANDROID_NO_SDK)
-            result.getOrNull()?.let { playerResponse ->
-                val formats = playerResponse.streamingData?.adaptiveFormats
-                    ?: playerResponse.streamingData?.formats
-                    ?: return@withContext ""
+        Timber.d("getStreamUrl: $videoId")
 
-                formats
-                    .filter { it.mimeType.startsWith("audio/") && it.url != null }
-                    .maxByOrNull { it.bitrate }
-                    ?.url ?: ""
-            } ?: ""
+        // Strategy 1: ANDROID_NO_SDK — url biasanya langsung ada tanpa cipher
+        val s1 = tryGetUrlFromPlayer(videoId, YouTubeClient.ANDROID_NO_SDK)
+        if (s1.isNotBlank()) { Timber.d("S1 ok: $videoId"); return@withContext s1 }
+
+        // Strategy 2: TVHTML5_SIMPLY_EMBEDDED — embedded player, url juga sering langsung
+        val s2 = tryGetUrlFromPlayer(videoId, YouTubeClient.TVHTML5_SIMPLY_EMBEDDED_PLAYER)
+        if (s2.isNotBlank()) { Timber.d("S2 ok: $videoId"); return@withContext s2 }
+
+        // Strategy 3: NewPipeExtractor — full JS deobfuscation
+        try {
+            val streams = NewPipeExtractor.newPipePlayer(videoId)
+            // Pilih audio stream: itag 251=opus/160k, 140=m4a/128k, 250=opus/70k
+            val preferred = listOf(251, 140, 250, 139, 249)
+            val url = preferred.firstNotNullOfOrNull { itag -> streams.find { it.first == itag }?.second }
+                ?: streams.firstOrNull()?.second ?: ""
+            if (url.isNotBlank()) { Timber.d("S3 NewPipe ok: $videoId"); return@withContext url }
         } catch (e: Exception) {
-            Timber.e(e, "getStreamUrl failed for $videoId")
+            Timber.e(e, "S3 NewPipe failed: $videoId")
+        }
+
+        Timber.w("All strategies failed for $videoId")
+        ""
+    }
+
+    private suspend fun tryGetUrlFromPlayer(videoId: String, client: YouTubeClient): String {
+        return try {
+            val response = YouTube.player(videoId, client = client).getOrNull() ?: return ""
+            val formats = response.streamingData?.adaptiveFormats
+                ?: response.streamingData?.formats
+                ?: return ""
+
+            // Filter audio only, pilih bitrate tertinggi
+            val audioFormats = formats.filter { it.isAudio && it.isOriginal }
+                .ifEmpty { formats.filter { it.isAudio } }
+                .ifEmpty { formats }
+
+            val best = audioFormats.maxByOrNull { it.bitrate } ?: return ""
+
+            // URL langsung
+            if (!best.url.isNullOrBlank()) return best.url!!
+
+            // Decode signatureCipher
+            val decoded = NewPipeExtractor.getStreamUrl(best, videoId) ?: ""
+            decoded
+        } catch (e: Exception) {
+            Timber.w("tryGetUrlFromPlayer $client failed: ${e.message}")
             ""
         }
     }
 
-    // ──── Home / Top Charts ─────────────────────────────────────────────────
+    // ── Top Charts ────────────────────────────────────────────
     suspend fun getTopCharts(): List<YtTrack> = withContext(Dispatchers.IO) {
         try {
-            val result = YouTube.home()
-            result.getOrNull()?.sections?.flatMap { section ->
+            YouTube.home().getOrNull()?.sections?.flatMap { section ->
                 section.items.filterIsInstance<SongItem>().map { song ->
                     YtTrack(
-                        videoId = song.id,
-                        title = song.title,
-                        artist = song.artists.joinToString(", ") { it.name },
-                        album = song.album?.name ?: "",
-                        thumbnailUrl = song.thumbnail ?: "",
+                        videoId       = song.id,
+                        title         = song.title,
+                        artist        = song.artists.joinToString(", ") { it.name },
+                        album         = song.album?.name ?: "",
+                        thumbnailUrl  = song.thumbnail ?: "",
                         durationSeconds = song.duration ?: 0
                     )
                 }
@@ -94,36 +128,32 @@ class YouTubeMusicRepository {
         }
     }
 
-    // ──── Related Tracks via next endpoint ──────────────────────────────────
+    // ── Related Tracks ────────────────────────────────────────
     suspend fun getRelatedTracks(videoId: String): List<YtTrack> = withContext(Dispatchers.IO) {
         try {
-            val nextResult = YouTube.next(WatchEndpoint(videoId = videoId)).getOrNull()
-            nextResult?.relatedEndpoint?.let { relatedEndpoint ->
-                val related = YouTube.related(relatedEndpoint).getOrNull()
-                related?.songs?.map { song ->
-                    YtTrack(
-                        videoId = song.id,
-                        title = song.title,
-                        artist = song.artists.joinToString(", ") { it.name },
-                        album = song.album?.name ?: "",
-                        thumbnailUrl = song.thumbnail ?: "",
-                        durationSeconds = song.duration ?: 0
-                    )
-                }?.take(20)
-            } ?: emptyList()
+            val next = YouTube.next(WatchEndpoint(videoId = videoId)).getOrNull() ?: return@withContext emptyList()
+            val related = next.relatedEndpoint?.let { YouTube.related(it).getOrNull() } ?: return@withContext emptyList()
+            related.songs.map { song ->
+                YtTrack(
+                    videoId      = song.id,
+                    title        = song.title,
+                    artist       = song.artists.joinToString(", ") { it.name },
+                    album        = song.album?.name ?: "",
+                    thumbnailUrl = song.thumbnail ?: "",
+                    durationSeconds = song.duration ?: 0
+                )
+            }.take(20)
         } catch (e: Exception) {
-            Timber.e(e, "getRelatedTracks failed for $videoId")
+            Timber.e(e, "getRelatedTracks failed")
             emptyList()
         }
     }
 
-    // ──── Search Suggestions ────────────────────────────────────────────────
+    // ── Search Suggestions ────────────────────────────────────
     suspend fun getSearchSuggestions(query: String): List<String> = withContext(Dispatchers.IO) {
         try {
-            val result = YouTube.searchSuggestions(query)
-            result.getOrNull()?.queries ?: emptyList()
+            YouTube.searchSuggestions(query).getOrNull()?.queries ?: emptyList()
         } catch (e: Exception) {
-            Timber.e(e, "searchSuggestions failed")
             emptyList()
         }
     }
