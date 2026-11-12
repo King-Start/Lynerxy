@@ -621,10 +621,10 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // ─────────────────────────────────────────────────────────
     // SLEEP TIMER
     // ─────────────────────────────────────────────────────────
-    fun setSleepTimer(minutes: Int, stopAfterSong: Boolean = false, fadeOut: Boolean = false) {
+    fun setSleepTimer(minutes: Int, stopAfterCurrentSong: Boolean = false, fadeOut: Boolean = false) {
         val p = MusicPlayerManager.player ?: return
         if (sleepTimer == null) sleepTimer = SleepTimer(viewModelScope, p) { vol -> MusicPlayerManager.player?.volume = vol }
-        sleepTimer!!.start(minutes, stopAfterSong, fadeOut)
+        sleepTimer!!.start(minutes, stopAfterCurrentSong, fadeOut)
         _sleepTimerActive.value = true
     }
 
