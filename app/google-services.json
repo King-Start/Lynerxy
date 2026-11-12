@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "842115612573",
+    "project_id": "asfiah-id",
+    "storage_bucket": "asfiah-id.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:842115612573:android:034def6d472173165c3974",
+        "android_client_info": {
+          "package_name": "com.agon.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDsUJwuKP1P94qO3ZCvO-18ZH1BsGx2W5w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
