@@ -97,7 +97,7 @@ private class NewPipeDownloaderImpl(
     }
 
     override fun executeAsync(request: Request, callback: AsyncCallback?): CancellableCall {
-        TODO("Placeholder")
+        throw UnsupportedOperationException("executeAsync is not supported")
     }
 }
 
@@ -105,6 +105,9 @@ object NewPipeUtils {
     init {
         NewPipe.init(NewPipeDownloaderImpl(YouTube.proxy, YouTube.proxyAuth))
     }
+
+    /** Memastikan NewPipe sudah di-init (dipanggil sebelum memakai NewPipe langsung) */
+    fun ensureInit() = Unit
 
     fun getSignatureTimestamp(videoId: String): Result<Int> = runCatching {
         YoutubeJavaScriptPlayerManager.getSignatureTimestamp(videoId)
@@ -142,6 +145,7 @@ object NewPipeUtils {
 object NewPipeExtractor {
     fun newPipePlayer(videoId: String): List<Pair<Int, String>> {
         return try {
+            NewPipeUtils.ensureInit()
             val streamInfo =
                 StreamInfo.getInfo(
                     NewPipe.getService(0),
@@ -151,7 +155,9 @@ object NewPipeExtractor {
             streamsList.mapNotNull {
                 (it.itagItem?.id ?: return@mapNotNull null) to it.content
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Throwable (bukan hanya Exception) supaya NoClassDefFoundError / ExceptionInInitializerError
+            // dari NewPipe tidak membuat aplikasi force close
             emptyList()
         }
     }

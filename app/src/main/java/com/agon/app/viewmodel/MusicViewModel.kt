@@ -20,6 +20,8 @@ import com.agon.app.lyrics.LyricsRegistry
 import com.agon.app.lyrics.findCurrentLyricsIndex
 import com.agon.app.lyrics.lyricsLooksSynced
 import com.agon.app.lyrics.parseLrc
+import com.agon.app.services.MusicService
+import kotlinx.coroutines.CancellationException
 import com.agon.app.utils.MusicPlayerManager
 import com.agon.app.utils.SleepTimer
 import com.google.firebase.auth.FirebaseAuth
@@ -70,12 +72,18 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     val searchQuery: StateFlow<String> = _searchQuery
     private val _searchResults = MutableStateFlow<List<Track>>(emptyList())
     val searchResults: StateFlow<List<Track>> = _searchResults
+        .map { list -> list.distinctBy { it.trackId } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val _isLoading     = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
     private val _topCharts     = MutableStateFlow<List<Track>>(emptyList())
     val topCharts: StateFlow<List<Track>> = _topCharts
+        .map { list -> list.distinctBy { it.trackId } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val _relatedTracks = MutableStateFlow<List<Track>>(emptyList())
     val relatedTracks: StateFlow<List<Track>> = _relatedTracks
+        .map { list -> list.distinctBy { it.trackId } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val _suggestions   = MutableStateFlow<List<String>>(emptyList())
     val searchSuggestions: StateFlow<List<String>> = _suggestions
     private val _searchHistory = MutableStateFlow<List<String>>(emptyList())
@@ -125,6 +133,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
 
     // ── Sleep Timer ───────────────────────────────────────────
     private var sleepTimer: SleepTimer? = null
+    private var fallbackTriedFor: Long? = null
     private val _sleepTimerActive = MutableStateFlow(false)
     val sleepTimerActive: StateFlow<Boolean> = _sleepTimerActive
     private val _sleepTimerRemaining = MutableStateFlow(-1L)
@@ -159,30 +168,38 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun initPlayer(context: Context) {
         MusicPlayerManager.init(context)
         MusicPlayerManager.onTrackChanged = { nextTrack() }
+        // Tombol Next / Previous dari notifikasi status bar
+        MusicPlayerManager.onSkipNext = { nextTrack() }
+        MusicPlayerManager.onSkipPrevious = { previousTrack() }
+        // Kalau URL stream gagal diputar → coba preview URL sekali, jangan crash/diam
+        MusicPlayerManager.onPlaybackError = { _ ->
+            val t = _selectedTrack.value
+            if (t != null && t.previewUrl.isNotBlank() &&
+                MusicPlayerManager.SONG_URL != t.previewUrl && fallbackTriedFor != t.trackId) {
+                fallbackTriedFor = t.trackId
+                MusicPlayerManager.play(t.previewUrl)
+            } else {
+                _isBuffering.value = false
+            }
+        }
         MusicPlayerManager.player?.let { p ->
-            sleepTimer?.release()
             sleepTimer = SleepTimer(viewModelScope, p) { vol -> MusicPlayerManager.player?.volume = vol }
         }
         // Poll player state setiap 500ms
         viewModelScope.launch {
             while (true) {
                 delay(500)
-                try {
-                    val p = MusicPlayerManager.player ?: continue
-                    _isPlaying.value = p.isPlaying
-                    _currentPos.value = p.currentPosition.toInt().coerceAtLeast(0)
-                    if (p.duration > 0) _duration.value = p.duration.toInt()
-                    _isBuffering.value = p.playbackState == androidx.media3.common.Player.STATE_BUFFERING
-                    if (_lyricsEntries.value.isNotEmpty()) {
-                        _currentLyricsIndex.value = findCurrentLyricsIndex(_lyricsEntries.value, _currentPos.value.toLong())
-                    }
-                    sleepTimer?.let { st ->
-                        _sleepTimerActive.value = st.isActive
-                        _sleepTimerRemaining.value = st.remainingMs()
-                    }
-                } catch (e: Exception) {
-                    // Jangan biarkan error polling menjatuhkan seluruh app (force close)
-                    Timber.e(e, "player poll error")
+                val p = MusicPlayerManager.player ?: continue
+                _isPlaying.value = p.isPlaying
+                _currentPos.value = p.currentPosition.toInt().coerceAtLeast(0)
+                if (p.duration > 0) _duration.value = p.duration.toInt()
+                _isBuffering.value = p.playbackState == androidx.media3.common.Player.STATE_BUFFERING
+                if (_lyricsEntries.value.isNotEmpty()) {
+                    _currentLyricsIndex.value = findCurrentLyricsIndex(_lyricsEntries.value, _currentPos.value.toLong())
+                }
+                sleepTimer?.let { st ->
+                    _sleepTimerActive.value = st.isActive
+                    _sleepTimerRemaining.value = st.remainingMs()
                 }
             }
         }
@@ -194,6 +211,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun selectTrack(track: Track, playlistTracks: List<Track> = emptyList()) {
         Timber.d("selectTrack: ${track.trackName} ytId=${track.ytVideoId} saavnId=${track.saavnId}")
         _selectedTrack.value = track
+        fallbackTriedFor = null
+        // Tampilkan lagu di status bar / notifikasi
+        MusicService.updateTrack(getApplication(), track.trackName, track.artistName, track.artworkUrl100)
         _lyrics.value = null
         _lyricsEntries.value = emptyList()
         _currentLyricsIndex.value = -1
@@ -266,12 +286,15 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                 Timber.w("fetchAndPlay: no audio URL found for ${track.trackName}")
                 _isBuffering.value = false
             }
-        } catch (e: Exception) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
             Timber.e(e, "fetchAndPlay crashed")
             _isBuffering.value = false
             // Fallback: coba preview URL
             if (track.previewUrl.isNotBlank()) {
-                withContext(Dispatchers.Main) { MusicPlayerManager.play(track.previewUrl) }
+                try { withContext(Dispatchers.Main) { MusicPlayerManager.play(track.previewUrl) } }
+                catch (t: Throwable) { Timber.e(t, "fallback play failed") }
             }
         }
     }
@@ -676,7 +699,6 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // ─────────────────────────────────────────────────────────
     override fun onCleared() {
         super.onCleared()
-        try { sleepTimer?.release() } catch (_: Exception) {}
         try { EqualizerManager.release() } catch (_: Exception) {}
     }
 }

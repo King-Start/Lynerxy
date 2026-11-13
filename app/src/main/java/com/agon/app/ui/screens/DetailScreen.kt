@@ -1,6 +1,5 @@
 package com.agon.app.ui.screens
 
-import android.content.Intent
 import android.graphics.Bitmap
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -51,7 +50,7 @@ fun formatTime(ms: Int): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailScreen(viewModel: MusicViewModel, onBack: () -> Unit, onLyrics: () -> Unit = {}, onEqualizer: () -> Unit = {}) {
+fun DetailScreen(viewModel: MusicViewModel, onBack: () -> Unit, onLyrics: () -> Unit = {}) {
     val track           by viewModel.selectedTrack.collectAsState()
     val isPlaying       by viewModel.isPlaying.collectAsState()
     val currentPosition by viewModel.currentPosition.collectAsState()
@@ -295,7 +294,7 @@ fun DetailScreen(viewModel: MusicViewModel, onBack: () -> Unit, onLyrics: () -> 
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     ActionChip(Icons.Default.Lyrics, "Lyrics") { onLyrics() }
-                    ActionChip(Icons.Default.Equalizer, "EQ") { onEqualizer() }
+                    ActionChip(Icons.Default.Equalizer, "EQ") {}
                     ActionChip(
                         when {
                             isDownloaded -> Icons.Default.DownloadDone
@@ -303,25 +302,7 @@ fun DetailScreen(viewModel: MusicViewModel, onBack: () -> Unit, onLyrics: () -> 
                             else -> Icons.Default.Download
                         }, "Save"
                     ) { if (!isDownloaded && !isDownloading) viewModel.downloadTrack(t) }
-                    ActionChip(Icons.Default.Share, "Share") {
-                        val shareText = buildString {
-                            append(t.trackName)
-                            if (t.artistName.isNotBlank()) append(" - ${t.artistName}")
-                            val url = when {
-                                t.ytVideoId.isNotBlank() -> "https://music.youtube.com/watch?v=${t.ytVideoId}"
-                                t.saavnId.isNotBlank() -> "https://www.jiosaavn.com/song/${t.saavnId}"
-                                else -> ""
-                            }
-                            if (url.isNotBlank()) append("\n$url")
-                        }
-                        try {
-                            val send = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, shareText)
-                            }
-                            context.startActivity(Intent.createChooser(send, "Share ${t.trackName}"))
-                        } catch (_: Exception) {}
-                    }
+                    ActionChip(Icons.Default.Share, "Share") {}
                 }
             }
 

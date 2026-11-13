@@ -15,17 +15,6 @@ class SleepTimer(
     private val onVolumeMultiplierChanged: (Float) -> Unit = {}
 ) : Player.Listener {
 
-    init {
-        // Daftarkan diri sebagai listener agar onMediaItemTransition /
-        // onPlaybackStateChanged benar-benar terpicu. Tanpa ini, fitur
-        // "Stop after this song" dan "Fade out last minute" tidak pernah jalan.
-        player.addListener(this)
-    }
-
-    fun release() {
-        runCatching { player.removeListener(this) }
-    }
-
     companion object {
         private const val TICK_MS = 1000L
         private const val FADE_WINDOW_MS = 60_000L

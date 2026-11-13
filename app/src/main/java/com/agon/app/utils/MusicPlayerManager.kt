@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import androidx.annotation.MainThread
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -26,6 +28,11 @@ object MusicPlayerManager {
     var MUSIC_DESCRIPTION = ""
     var IMAGE_URL         = ""
     var onTrackChanged: (() -> Unit)? = null
+    /** Dipanggil dari tombol Next/Previous di notifikasi status bar */
+    var onSkipNext: (() -> Unit)? = null
+    var onSkipPrevious: (() -> Unit)? = null
+    /** Dipanggil saat ExoPlayer gagal memutar URL (untuk fallback) */
+    var onPlaybackError: ((PlaybackException) -> Unit)? = null
 
     @MainThread
     fun init(context: Context) {
@@ -37,8 +44,16 @@ object MusicPlayerManager {
                 .setReadTimeoutMs(40_000)
                 .setAllowCrossProtocolRedirects(true)
 
+            val audioAttrs = AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                .build()
+
             player = ExoPlayer.Builder(context.applicationContext)
                 .setMediaSourceFactory(DefaultMediaSourceFactory(DefaultDataSource.Factory(context.applicationContext, http)))
+                .setAudioAttributes(audioAttrs, true)      // audio focus
+                .setHandleAudioBecomingNoisy(true)         // pause saat headset dicabut
+                .setWakeMode(C.WAKE_MODE_NETWORK)          // tetap jalan saat layar mati
                 .build()
                 .also { p ->
                     p.addListener(object : Player.Listener {
@@ -48,6 +63,7 @@ object MusicPlayerManager {
                         }
                         override fun onPlayerError(error: PlaybackException) {
                             Timber.e(error, "ExoPlayer error: ${error.errorCode} ${error.message}")
+                            try { onPlaybackError?.invoke(error) } catch (t: Throwable) { Timber.e(t, "onPlaybackError failed") }
                         }
                     })
                 }

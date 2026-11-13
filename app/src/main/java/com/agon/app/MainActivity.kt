@@ -1,6 +1,11 @@
 package com.agon.app
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -25,9 +30,19 @@ import com.agon.app.viewmodel.MusicViewModel
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    // Android 13+: izin notifikasi wajib agar judul lagu muncul di status bar
+    private val notifPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         MusicPlayerManager.init(this)
         setContent {
             AgonAppTheme(darkTheme = true) { MainApp() }
@@ -95,7 +110,7 @@ fun MainApp() {
                 }
                 composable("chat")    { ChatScreen(vm) { scope.launch { drawerState.open() } } }
                 composable("analyze") { AnalyzeScreen(vm) { scope.launch { drawerState.open() } } }
-                composable("detail")  { DetailScreen(vm, { navController.popBackStack() }, { navController.navigate("lyrics") }, { navController.navigate("equalizer") }) }
+                composable("detail")  { DetailScreen(vm, { navController.popBackStack() }, { navController.navigate("lyrics") }) }
                 composable("lyrics")  { LyricsScreen(vm) { navController.popBackStack() } }
                 composable("settings")  { SettingsScreen(vm) { navController.popBackStack() } }
                 composable("equalizer") { EqualizerScreen(vm) { navController.popBackStack() } }

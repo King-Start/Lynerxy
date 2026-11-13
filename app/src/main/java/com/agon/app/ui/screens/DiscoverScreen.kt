@@ -17,8 +17,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalContext
-import android.widget.Toast
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -44,7 +42,6 @@ fun DiscoverScreen(
     val suggestions    by viewModel.searchSuggestions.collectAsState()
     val keyboard       = LocalSoftwareKeyboardController.current
     val focusManager   = LocalFocusManager.current
-    val context        = LocalContext.current
     var selectedTab    by remember { mutableStateOf(0) }
     val tabs           = listOf("Home", "Charts", "Genre", "Library")
 
@@ -67,7 +64,7 @@ fun DiscoverScreen(
                         Icon(Icons.Default.Menu, null, tint = Color.White)
                     }
                     Text("LyronixAi", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    IconButton(onClick = { Toast.makeText(context, "Belum ada notifikasi", Toast.LENGTH_SHORT).show() }) {
+                    IconButton(onClick = {}) {
                         Icon(Icons.Default.NotificationsNone, null, tint = Color.White.copy(0.6f))
                     }
                 }

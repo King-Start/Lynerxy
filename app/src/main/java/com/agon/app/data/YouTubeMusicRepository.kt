@@ -74,7 +74,9 @@ class YouTubeMusicRepository {
             streams.firstOrNull()?.second?.also {
                 Timber.d("getStreamUrl NewPipe fallback ok")
             } ?: ""
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
             Timber.e(e, "getStreamUrl NewPipe failed")
             ""
         }
@@ -99,7 +101,9 @@ class YouTubeMusicRepository {
             if (url.isNotBlank()) Timber.d("tryClient ${client.clientName} ok: bitrate=${best?.bitrate}")
             else Timber.d("tryClient ${client.clientName} url empty")
             url
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
             Timber.w("tryClient ${client.clientName} failed: ${e.message}")
             ""
         }
