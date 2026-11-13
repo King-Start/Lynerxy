@@ -160,23 +160,29 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         MusicPlayerManager.init(context)
         MusicPlayerManager.onTrackChanged = { nextTrack() }
         MusicPlayerManager.player?.let { p ->
+            sleepTimer?.release()
             sleepTimer = SleepTimer(viewModelScope, p) { vol -> MusicPlayerManager.player?.volume = vol }
         }
         // Poll player state setiap 500ms
         viewModelScope.launch {
             while (true) {
                 delay(500)
-                val p = MusicPlayerManager.player ?: continue
-                _isPlaying.value = p.isPlaying
-                _currentPos.value = p.currentPosition.toInt().coerceAtLeast(0)
-                if (p.duration > 0) _duration.value = p.duration.toInt()
-                _isBuffering.value = p.playbackState == androidx.media3.common.Player.STATE_BUFFERING
-                if (_lyricsEntries.value.isNotEmpty()) {
-                    _currentLyricsIndex.value = findCurrentLyricsIndex(_lyricsEntries.value, _currentPos.value.toLong())
-                }
-                sleepTimer?.let { st ->
-                    _sleepTimerActive.value = st.isActive
-                    _sleepTimerRemaining.value = st.remainingMs()
+                try {
+                    val p = MusicPlayerManager.player ?: continue
+                    _isPlaying.value = p.isPlaying
+                    _currentPos.value = p.currentPosition.toInt().coerceAtLeast(0)
+                    if (p.duration > 0) _duration.value = p.duration.toInt()
+                    _isBuffering.value = p.playbackState == androidx.media3.common.Player.STATE_BUFFERING
+                    if (_lyricsEntries.value.isNotEmpty()) {
+                        _currentLyricsIndex.value = findCurrentLyricsIndex(_lyricsEntries.value, _currentPos.value.toLong())
+                    }
+                    sleepTimer?.let { st ->
+                        _sleepTimerActive.value = st.isActive
+                        _sleepTimerRemaining.value = st.remainingMs()
+                    }
+                } catch (e: Exception) {
+                    // Jangan biarkan error polling menjatuhkan seluruh app (force close)
+                    Timber.e(e, "player poll error")
                 }
             }
         }
@@ -670,6 +676,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     // ─────────────────────────────────────────────────────────
     override fun onCleared() {
         super.onCleared()
+        try { sleepTimer?.release() } catch (_: Exception) {}
         try { EqualizerManager.release() } catch (_: Exception) {}
     }
 }

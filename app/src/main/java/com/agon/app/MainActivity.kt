@@ -95,7 +95,7 @@ fun MainApp() {
                 }
                 composable("chat")    { ChatScreen(vm) { scope.launch { drawerState.open() } } }
                 composable("analyze") { AnalyzeScreen(vm) { scope.launch { drawerState.open() } } }
-                composable("detail")  { DetailScreen(vm, { navController.popBackStack() }, { navController.navigate("lyrics") }) }
+                composable("detail")  { DetailScreen(vm, { navController.popBackStack() }, { navController.navigate("lyrics") }, { navController.navigate("equalizer") }) }
                 composable("lyrics")  { LyricsScreen(vm) { navController.popBackStack() } }
                 composable("settings")  { SettingsScreen(vm) { navController.popBackStack() } }
                 composable("equalizer") { EqualizerScreen(vm) { navController.popBackStack() } }

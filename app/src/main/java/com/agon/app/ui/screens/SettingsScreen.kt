@@ -17,6 +17,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
+import coil3.imageLoader
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -43,6 +45,7 @@ fun SettingsScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
 
     val providers = listOf("OpenAI","Claude","Gemini","DeepSeek","GLM","Kimi","Mistral","GoAPI")
     val user = FirebaseAuth.getInstance().currentUser
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -195,7 +198,14 @@ fun SettingsScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
                 }
                 SettingsDivider()
                 SettingsItem(Icons.Default.Delete, "Clear Cache") {
-                    TextButton(onClick = {}) { Text("Clear", color = Color(0xFFFF5252), fontSize = 13.sp) }
+                    TextButton(onClick = {
+                        try {
+                            val loader = context.imageLoader
+                            loader.memoryCache?.clear()
+                            loader.diskCache?.clear()
+                            Toast.makeText(context, "Cache cleared", Toast.LENGTH_SHORT).show()
+                        } catch (_: Exception) {}
+                    }) { Text("Clear", color = Color(0xFFFF5252), fontSize = 13.sp) }
                 }
             }
 
