@@ -600,6 +600,7 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
     fun sendMessage(text: String, category: String, hasImage: Boolean = false, hasAudio: Boolean = false) {
         if (text.isBlank() && !hasImage && !hasAudio) return
         val display = when { hasImage -> "📷 $text"; hasAudio -> "🎵 $text"; else -> text }
+        val priorMessages = _chatMessages.value   // riwayat sebelum pesan baru → dikirim ke AI sebagai konteks
         addMsg(ChatMessage(text = display, isUser = true, hasImage = hasImage, hasAudio = hasAudio))
         viewModelScope.launch {
             _isAiTyping.value = true
@@ -616,7 +617,11 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
                     _generatedImageUrl.value = url
                 } else {
                     val prompt = buildPrompt(text, category, hasImage, hasAudio)
-                    val response = withContext(Dispatchers.IO) { aiRepo.generateResponse(prompt, key, _apiProvider.value) }
+                    val aiMessages = buildChatHistory(priorMessages) + AiMessage("user", prompt)
+                    val system = buildSystemPrompt(category)
+                    val response = withContext(Dispatchers.IO) {
+                        aiRepo.generateChat(aiMessages, key, _apiProvider.value, system)
+                    }
                     if (response.startsWith("ERROR")) {
                         addMsg(ChatMessage(text = "❌ $response", isUser = false))
                     } else {
@@ -649,7 +654,54 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
         cat == "Lirik" -> "Tulis lirik Bahasa Indonesia tentang: \"$text\"\nFormat: [Verse][Pre-Chorus][Chorus][Bridge][Outro]"
         cat == "Suno Prompt" -> "Buat Suno AI prompt untuk: \"$text\"\nFormat:\n**Style:** [genre, mood, tempo]\n**Prompt:** [deskripsi detail]\n**Negative:** [hindari apa]\n**BPM:** [estimasi]"
         cat == "Coding" || cat == "Web Dev" -> "Buat kode HTML+CSS+JS lengkap: \"$text\"\nHanya kode. Tanpa penjelasan. Tanpa backtick."
-        else -> "Jawab sebagai AI assistant musik & teknologi:\n$text"
+        else -> text
+    }
+
+    /** Ubah riwayat chat jadi pesan untuk AI (maks 20 pesan / ±12.000 karakter, error & gambar dilewati). */
+    private fun buildChatHistory(prior: List<ChatMessage>): List<AiMessage> {
+        val out = ArrayDeque<AiMessage>()
+        var budget = 12_000
+        for (m in prior.asReversed()) {
+            if (out.size >= 20 || budget <= 0) break
+            if (m.hasImageResult) continue
+            val head = m.text.trimStart()
+            if (!m.isUser && (head.startsWith("❌") || head.startsWith("⚠️"))) continue
+            val raw = if (!m.isUser && m.hasCode) (m.codeSnippet ?: m.text) else m.text
+            val content = raw.take(3_000)
+            if (content.isBlank()) continue
+            budget -= content.length
+            out.addFirst(AiMessage(if (m.isUser) "user" else "assistant", content))
+        }
+        return out.toList()
+    }
+
+    /** Peran AI + konteks lagu yang sedang diputar (hanya untuk kategori seputar musik). */
+    private fun buildSystemPrompt(category: String): String = buildString {
+        append("Kamu adalah asisten AI di aplikasi musik LyronixAi. Jawab dengan bahasa yang dipakai pengguna ")
+        append("(default Bahasa Indonesia), jelas dan ringkas. Kamu ahli musik, lirik, produksi musik ")
+        append("(termasuk Suno AI), dan pemrograman.")
+
+        if (category in setOf("Chat", "Analisis Musik", "Lirik", "Suno Prompt")) {
+            _selectedTrack.value?.let { t ->
+                append("\n\nLagu yang sedang diputar pengguna: \"${t.trackName}\" oleh ${t.artistName}")
+                if (t.collectionName.isNotBlank()) append(" (album: ${t.collectionName})")
+                append(". Gunakan info ini hanya jika pertanyaan menyangkut lagu yang sedang diputar ")
+                append("(misalnya \"lagu ini\" atau \"yang lagi diputar\").")
+                val snippet = lyricsSnippetForAi()
+                if (snippet.isNotBlank()) append("\nCuplikan lirik lagu tersebut:\n$snippet")
+            }
+        }
+    }
+
+    private fun lyricsSnippetForAi(): String {
+        val raw = _lyrics.value ?: return ""
+        val timestamp = Regex("\\[\\d{1,2}:\\d{2}(?:[.:]\\d{1,3})?\\]")
+        return raw.lines()
+            .map { it.replace(timestamp, "").trim() }
+            .filter { it.isNotBlank() }
+            .take(40)
+            .joinToString("\n")
+            .take(1_500)
     }
 
     private fun addMsg(msg: ChatMessage) { _chatMessages.value = _chatMessages.value + msg }
