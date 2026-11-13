@@ -312,7 +312,13 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             }
             // Fetch dari provider
             val result = withContext(Dispatchers.IO) {
-                LyricsRegistry.getLyrics(track.trackName, track.artistName)
+                LyricsRegistry.getLyrics(
+                    title = track.trackName,
+                    artist = track.artistName,
+                    durationSec = track.durationSeconds.takeIf { it > 0 } ?: (track.trackTimeMillis / 1000).toInt(),
+                    videoId = track.ytVideoId,
+                    album = track.collectionName
+                )
             }
             if (!result.raw.isNullOrBlank()) {
                 withContext(Dispatchers.IO) {
