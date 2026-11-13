@@ -328,7 +328,9 @@ class MusicViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 _lyrics.value = null
             }
-        } catch (e: Exception) {
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
             Timber.e(e, "fetchLyrics failed")
             _lyrics.value = null
         }

@@ -2,7 +2,7 @@ package com.agon.app.lyrics
 
 val LRC_LINE_REGEX = "((\\[\\d\\d:\\d\\d\\.\\d{2,3}\\] ?)+)(.*)".toRegex()
 val LRC_TIME_REGEX = "\\[(\\d\\d):(\\d\\d)\\.(\\d{2,3})\\]".toRegex()
-private val LRC_TIMESTAMP_HINT = Regex("""\\[\d{1,2}:\d{2}""")
+private val LRC_TIMESTAMP_HINT = Regex("""\[\d{1,2}:\d{2}""")
 
 fun lyricsLooksSynced(lyrics: String?): Boolean {
     if (lyrics.isNullOrBlank()) return false
